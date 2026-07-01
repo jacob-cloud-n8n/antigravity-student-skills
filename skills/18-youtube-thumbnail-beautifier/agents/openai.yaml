@@ -1,0 +1,8 @@
+interface:
+  display_name: "YouTube 縮圖美化"
+  short_description: "把基礎縮圖優化成高點擊感成品"
+  brand_color: "#F97316"
+  default_prompt: "Use $youtube-thumbnail-beautifier to beautify my uploaded YouTube thumbnail into a more clickable version."
+
+policy:
+  allow_implicit_invocation: true
