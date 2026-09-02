@@ -1,0 +1,7 @@
+interface:
+  display_name: "AI 協作基礎"
+  short_description: "建立可攜協作檔案，帶新手完成可重複工作循環"
+  default_prompt: "使用 $ai-collaboration-foundations 帶我建立工作導向的 AI 協作檔案，並用一項真實工作開始練習。"
+
+policy:
+  allow_implicit_invocation: true
