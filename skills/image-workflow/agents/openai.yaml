@@ -1,0 +1,4 @@
+interface:
+  display_name: "圖片製作與精準編輯"
+  short_description: "用繁體中文引導首次設定、圖片生成、局部修改、多圖合成與成果檢查"
+  default_prompt: "使用 $image-workflow，幫我確認可用的生圖方式，完成一張圖片並引導我修改。"
