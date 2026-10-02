@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>geo</title>
+<!--
+  畫風 A｜幾何資訊（Canvas）：排版＋幾何符號＋資料圖，一個主角符號（游標）貫穿全片。
+  最適合：新聞整理、方法說明、方案介紹。這是程式最擅長、最容易做得精緻的畫風。
+  範例 8 秒：衝突句 → 游標一路往前 → 閘門落下 → 打勾過關。改 T、文字與場景函式即可。
+-->
+<script src="kit.js"></script>
+<style>html,body{margin:0}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const W = innerWidth, H = innerHeight, MX = Math.round(W * 0.09);
+const cv = document.getElementById('c'); cv.width = W; cv.height = H;
+const ctx = cv.getContext('2d');
+const K = KIT;
+
+// 時間軸：120 BPM＝1 拍 0.5 秒、1 小節 2 秒；事件放在拍點上（配樂讀同一份）
+const T = {hook: 0, run: 2, gate: 5, pass: 6.5, DUR: 8};
+window.DUR = T.DUR; window.TIMELINE = T;
+
+const NODES = [0.14, 0.31, 0.48, 0.65, 0.82].map(f => f * W), PY = H * 0.56, GX = 0.74 * W;
+
+function scene(t) {
+  const C = K.C;
+  // 第 0 格就要有字（社群常拿第一格當封面）
+  let r = K.rise(t, -0.4); K.text(ctx, '交給 AI 的事，', MX, H * 0.3, {px: 80, w: 900, a: r.a, dy: r.dy});
+  r = K.rise(t, 0.6);      K.text(ctx, '誰來驗收？', MX, H * 0.3 + 100, {px: 80, w: 900, col: C.acc, a: r.a, dy: r.dy});
+  // 步驟路徑：游標每拍跳一格，被閘門擋下，打勾後通過
+  K.line(ctx, NODES[0], PY, NODES[4], PY, C.line2, 4);
+  let k = Math.floor((t - T.run) / 0.5), f = ((t - T.run) / 0.5) - k;
+  let cx = t < T.run ? NODES[0] - 50 : NODES[Math.min(k, 4)] + (k < 4 ? (NODES[k + 1] - NODES[k]) * K.ease(f / 0.5) : 0);
+  if (t < T.pass) cx = Math.min(cx, GX - 40);
+  NODES.forEach(nx => { const lit = cx >= nx - 4;
+    ctx.beginPath(); ctx.arc(nx, PY, 15, 0, 7); ctx.fillStyle = lit ? C.ink : C.bg; ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = lit ? C.ink : C.line2; ctx.stroke(); });
+  if (t >= T.gate - 0.3) {                                   // 閘門落下（帶回彈）→ 驗過後收進地面
+    const y = K.lerp(PY - 420, PY - 110, K.easeBack((t - T.gate) / 0.2)), lift = K.prog(t, T.pass - 0.3, 0.3);
+    K.fillR(ctx, GX - 8, y + 220 * lift, 16, 220 * (1 - lift), 4, C.acc);
+  }
+  if (t >= T.pass - 0.6) {                                   // 打勾
+    const p = K.prog(t, T.pass - 0.6, 0.3);
+    ctx.save(); ctx.strokeStyle = C.acc; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.beginPath();
+    ctx.moveTo(GX - 30, PY - 170); ctx.lineTo(GX - 30 + 25 * Math.min(1, p * 2), PY - 170 + 25 * Math.min(1, p * 2));
+    if (p > 0.5) ctx.lineTo(GX - 5 + 45 * (p - 0.5) * 2, PY - 145 - 50 * (p - 0.5) * 2);
+    ctx.stroke(); ctx.restore();
+  }
+  K.cursor(ctx, cx - 8, PY - 6, 1.6);
+  r = K.rise(t, T.pass); K.text(ctx, '一個做，一個驗。', MX, H * 0.82, {px: 56, w: 800, a: r.a, dy: r.dy});
+}
+
+window.render = t => { ctx.fillStyle = K.C.bg; ctx.fillRect(0, 0, W, H); scene(t); };
+K.setup({palette: 'dark'}).then(() => { window.__ready = true; });
+</script>
+</body>
+</html>

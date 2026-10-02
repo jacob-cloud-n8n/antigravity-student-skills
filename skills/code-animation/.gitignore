@@ -1,0 +1,6 @@
+# 渲染產物不進版控、不隨技能發佈
+*-stills/
+*-frames/
+*-music.wav
+*-timeline.json
+*.mp4

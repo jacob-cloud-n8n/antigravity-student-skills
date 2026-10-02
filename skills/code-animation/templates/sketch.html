@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>sketch</title>
+<!--
+  畫風 C｜手繪線條（Canvas）：線條會微微抖動（每秒 8 次），東西是「被畫出來」的。
+  最適合：流程、物件、步驟示意（白板講解感）。
+  ⚠️ 不適合拿來手刻人物——火柴人在手機上像草稿；要人物請用畫風 D（角色插畫）。
+-->
+<script src="kit.js"></script>
+<style>html,body{margin:0}canvas{display:block}</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const W = innerWidth, H = innerHeight, MX = Math.round(W * 0.09);
+const cv = document.getElementById('c'); cv.width = W; cv.height = H;
+const ctx = cv.getContext('2d');
+const K = KIT;
+const T = {steps: [1, 2.5, 4], check: 5.5, DUR: 8};
+window.DUR = T.DUR; window.TIMELINE = T;
+
+const LABELS = ['收集', '整理', '驗收'];
+function scene(t) {
+  const C = K.C, y = H * 0.52, bw = W * 0.22, gap = (W - 2 * MX - 3 * bw) / 2;
+  let r = K.rise(t, -0.4); K.text(ctx, '一件事的三個步驟', MX, H * 0.28, {px: 76, w: 900, a: r.a, dy: r.dy});
+  LABELS.forEach((lab, i) => {
+    const x = MX + i * (bw + gap), t0 = T.steps[i];
+    K.sketch(ctx, t, K.rect(x, y, bw, bw * 0.75), {p: K.prog(t, t0, 0.6), close: true, seed: 10 + i});   // 方框被畫出來
+    K.text(ctx, lab, x + bw / 2, y + bw * 0.45, {px: 44, w: 800, a: K.prog(t, t0 + 0.4, 0.3), align: 'center'});
+    if (i < 2) { const ax = x + bw + 12, p = K.prog(t, t0 + 0.7, 0.4);                                      // 箭頭
+      K.sketch(ctx, t, [[ax, y + bw * 0.37], [ax + gap - 24, y + bw * 0.37]], {p, seed: 20 + i, lw: 4});
+      if (p >= 1) K.sketch(ctx, t, [[ax + gap - 44, y + bw * 0.37 - 16], [ax + gap - 24, y + bw * 0.37], [ax + gap - 44, y + bw * 0.37 + 16]], {seed: 30 + i, lw: 4}); }
+  });
+  const x3 = MX + 2 * (bw + gap) + bw / 2;                     // 最後一格打勾（焦點色）
+  K.sketch(ctx, t, [[x3 - 40, y - 60], [x3 - 10, y - 30], [x3 + 45, y - 95]], {col: C.acc, lw: 9, p: K.prog(t, T.check, 0.4), seed: 40});
+  r = K.rise(t, T.check + 0.4); K.text(ctx, '少了最後一格，前面都白做。', MX, H * 0.82, {px: 48, w: 700, col: C.muted, a: r.a, dy: r.dy});
+}
+
+window.render = t => { ctx.fillStyle = K.C.bg; ctx.fillRect(0, 0, W, H); scene(t); };
+K.setup({palette: 'dark'}).then(() => { window.__ready = true; });
+</script>
+</body>
+</html>

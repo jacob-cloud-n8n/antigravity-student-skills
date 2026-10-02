@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>motion</title>
+<!--
+  畫風 B｜動態文字（DOM／SVG＋GSAP）：逐字彈入、線條畫出、圖形變形。
+  最適合：金句、標語、一句話講清楚一個觀念。
+  ⛔ GSAP 要「預跑一次」（tl.progress(1,true).progress(0,true)）＋被補間的屬性先寫明初始值，
+     否則先跳到後面再倒回會畫錯（實測過）。render(t) 只做 tl.seek(t)。
+-->
+<script src="kit.js"></script>
+<style>
+html,body{margin:0;overflow:hidden}
+#title{position:absolute;left:9%;top:24%;font:900 96px TC;line-height:1.2}
+#sub{position:absolute;left:9%;top:36%;font:500 40px TC}
+svg{position:absolute;left:0;top:44%}
+</style>
+</head>
+<body>
+<div id="title">工具每週都在變，</div>
+<div id="sub">不變的是：一個做、一個驗</div>
+<svg width="100%" height="600" viewBox="0 0 1080 600">
+  <path id="track" d="M96 300 C 300 120, 600 480, 980 300" fill="none" stroke-width="6" stroke-linecap="round"/>
+  <path id="shape" d="M540 200 a100 100 0 1 0 0.1 0"/>
+  <path id="check" d="M470 300 L525 355 L620 245" fill="none" visibility="hidden"/>
+</svg>
+<script>
+window.DUR = 4; window.TIMELINE = {draw: 1.0, morph: 2.2, DUR: 4};
+const G = 'gsap/';
+KIT.setup({palette: 'dark', libs: [G + 'gsap.min.js', G + 'SplitText.min.js', G + 'DrawSVGPlugin.min.js', G + 'MorphSVGPlugin.min.js']}).then(C => {
+  document.body.style.color = C.ink; document.getElementById('sub').style.color = C.muted;
+  document.getElementById('track').setAttribute('stroke', C.line2);
+  gsap.registerPlugin(SplitText, DrawSVGPlugin, MorphSVGPlugin);
+  gsap.set('#shape', {fill: C.acc, stroke: C.acc, strokeWidth: 0});          // ⛔ 會被補間的屬性先寫明初始值
+  const split = new SplitText('#title', {type: 'chars'});
+  const tl = gsap.timeline({paused: true});
+  tl.from(split.chars, {yPercent: 110, opacity: 0, duration: 0.5, stagger: 0.05, ease: 'back.out(1.7)'}, -0.3)  // 第 0 格已出現前幾個字（封面）
+    .from('#sub', {opacity: 0, y: 24, duration: 0.4}, 0.8)
+    .from('#track', {drawSVG: '0%', duration: 1.0, ease: 'power2.inOut'}, 1.0)
+    .to('#shape', {morphSVG: '#check', duration: 0.6, ease: 'power3.inOut'}, 2.2)
+    .to('#shape', {fill: 'none', strokeWidth: 18, duration: 0.3}, 2.5);
+  tl.progress(1, true).progress(0, true);                                     // ⛔ 預跑一次
+  window.render = t => { tl.seek(t, false); };   // ⛔ 一定要加大括號：不加會把整個時間軸物件回傳給渲染器，序列化卡死（實測過）
+  window.__ready = true;
+});
+</script>
+</body>
+</html>

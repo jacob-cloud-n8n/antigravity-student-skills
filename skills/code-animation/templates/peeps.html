@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>peeps</title>
+<!--
+  畫風 D｜角色插畫（Open Peeps，CC0）：有人物的故事。角色依配色自動上色（線＝ink、底＝bg）。
+  最適合：情境故事（「某人遇到某個問題 → 改變做法 → 結果」）。
+  角色：站姿 standing-N（30 張）、坐姿 sitting-N（14 張）、半身 N（49 張），編號不連號——挑角色先開素材庫 open-peeps-svg/ 看圖。
+  動作用 GSAP 時間軸＋預跑（同畫風 B 的規則）。表情要換，需可拆組件的完整庫（Gumroad，需自行下載）。
+-->
+<script src="kit.js"></script>
+<style>
+html,body{margin:0;overflow:hidden}
+.peep{position:absolute;width:24%}
+.peep svg{width:100%;height:auto}
+#a{left:14%;top:38%} #b{right:14%;top:38%}
+.bubble{position:absolute;padding:22px 30px;border-radius:28px;font:800 40px TC;white-space:nowrap}
+#q{left:8%;top:30%} #ans{right:8%;top:30%}
+#cap{position:absolute;left:9%;top:12%;font:900 76px TC;line-height:1.25}
+</style>
+</head>
+<body>
+<div id="cap">做完了，<br>然後呢？</div>
+<div class="peep" id="a"></div><div class="peep" id="b"></div>
+<div class="bubble" id="q">這樣可以嗎？</div>
+<div class="bubble" id="ans">我幫你驗一遍</div>
+<script>
+window.DUR = 6; window.TIMELINE = {enterA: 0.5, enterB: 1.5, ask: 2.5, answer: 3.5, DUR: 6};
+KIT.setup({palette: 'dark', libs: ['gsap/gsap.min.js']}).then(async C => {
+  document.body.style.color = C.ink;
+  document.getElementById('a').innerHTML = await KIT.peep('standing-5');
+  document.getElementById('b').innerHTML = await KIT.peep('standing-12');
+  for (const id of ['q', 'ans']) Object.assign(document.getElementById(id).style, {background: C.card, border: `2px solid ${C.line2}`});
+  document.getElementById('ans').style.borderColor = C.acc;
+  const T = window.TIMELINE;
+  gsap.set(['#q', '#ans'], {opacity: 0, y: 20});
+  const tl = gsap.timeline({paused: true});
+  tl.from('#a', {x: -200, opacity: 0, duration: 0.6, ease: 'power3.out'}, T.enterA)
+    .from('#b', {x: 200, opacity: 0, duration: 0.6, ease: 'power3.out'}, T.enterB)
+    .to('#q', {opacity: 1, y: 0, duration: 0.35, ease: 'back.out(2)'}, T.ask)
+    .to('#ans', {opacity: 1, y: 0, duration: 0.35, ease: 'back.out(2)'}, T.answer)
+    .to('#b', {y: -16, duration: 0.15, yoyo: true, repeat: 1}, T.answer);          // 回答時小跳一下
+  tl.progress(1, true).progress(0, true);                                          // ⛔ 預跑一次
+  window.render = t => { tl.seek(t, false); };   // ⛔ 一定要加大括號：不加會把整個時間軸物件回傳給渲染器，序列化卡死（實測過）
+  window.__ready = true;
+});
+</script>
+</body>
+</html>
