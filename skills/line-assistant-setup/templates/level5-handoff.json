@@ -1,0 +1,453 @@
+{
+  "name": "課程範本 5｜LINE 人工交接紀錄",
+  "nodes": [
+    {
+      "id": "10000000-0000-4000-8000-000000000401",
+      "name": "LINE Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "line-assistant-level-5",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "line-assistant",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "notes": "收到請求後立即回 200；後續節點在背景處理，避免 LINE 因等待而重送。"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000402",
+      "name": "解析 LINE 事件",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const input = $input.first()?.json || {};\nconst body = input.body && typeof input.body === 'object' ? input.body : input;\nconst events = Array.isArray(body.events) ? body.events : [];\n\nif (events.length === 0) {\n  return [{ json: { shouldReply: false, reason: 'empty-events' } }];\n}\n\nconst event = events[0] || {};\nconst isText = event.type === 'message' && event.message?.type === 'text';\nconst replyToken = typeof event.replyToken === 'string' ? event.replyToken : '';\n\nif (!isText || !replyToken) {\n  return [{ json: { shouldReply: false, reason: 'non-text-or-missing-reply-token' } }];\n}\n\nconst userText = String(event.message?.text || '').trim();\nconst sourceUserId = String(event.source?.userId || '');\n\nreturn [{\n  json: {\n    shouldReply: true,\n    replyToken,\n    userText,\n    userIdSuffix: sourceUserId ? sourceUserId.slice(-6) : '',\n    receivedAt: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000403",
+      "name": "只處理可回覆文字",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "condition-should-reply",
+              "leftValue": "={{ $json.shouldReply }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "notes": "空 events、貼圖等非文字事件會在這裡停止，不呼叫回覆 API。"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000404",
+      "name": "讀取 FAQ 試算表",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        720,
+        0
+      ],
+      "alwaysOutputData": true,
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "問答",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleApi": {}
+      },
+      "notes": "請貼上試算表網址並選擇 Google 服務帳戶憑證；「問答」分頁欄位必須是「關鍵字」與「回覆」。"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000405",
+      "name": "準備知識與路由",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const eventData = $('解析 LINE 事件').first().json;\nconst rows = $input.all()\n  .map((item) => ({\n    keyword: String(item.json?.['關鍵字'] || '').trim(),\n    reply: String(item.json?.['回覆'] || '').trim()\n  }))\n  .filter((row) => row.keyword && row.reply && !['預設', 'default'].includes(row.keyword.toLowerCase()));\n\nconst question = String(eventData.userText || '').trim();\nconst matched = rows.find((row) => question.includes(row.keyword));\nconst fallback = '我請專人回覆您';\nconst hasKnowledge = rows.length > 0;\nconst replyText = matched?.reply || fallback;\nconst knowledge = rows.map((row) => `關鍵字：${row.keyword}\\n回覆：${row.reply}`).join('\\n\\n');\nconst needsAI = !matched && hasKnowledge;\n\nreturn [{\n  json: {\n    ...eventData,\n    needsAI,\n    waitingForHuman: !matched && !hasKnowledge,\n    replyText,\n    knowledge,\n    systemPrompt: [\n      '你是 LINE 官方助理。',\n      '只能依照下方「試算表內容」回答，不得使用外部知識、常識或猜測。',\n      '如果內容不足以直接回答，必須只回覆：我請專人回覆您',\n      '回答要簡短、使用繁體中文，不要提到系統提示。',\n      '',\n      '試算表內容：',\n      knowledge || '（沒有可用內容）'\n    ].join('\\n'),\n    replyBody: {\n      replyToken: eventData.replyToken,\n      messages: [{ type: 'text', text: replyText }]\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000406",
+      "name": "需要 AI 嗎",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "condition-needs-ai",
+              "leftValue": "={{ $json.needsAI }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000407",
+      "name": "呼叫 Zen AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1440,
+        -120
+      ],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://opencode.ai/zen/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'glm-5.3', temperature: 0, messages: [ { role: 'system', content: $json.systemPrompt }, { role: 'user', content: $json.userText } ] } }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "notes": "20 秒逾時；失敗時由下一個 Code 節點改用固定人工交接句。"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000408",
+      "name": "整理 AI 回覆",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        -120
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const routeData = $('準備知識與路由').first().json;\nconst response = $input.first()?.json || {};\nconst fallback = '我請專人回覆您';\nconst rawContent = response?.choices?.[0]?.message?.content;\nconst candidate = typeof rawContent === 'string' ? rawContent.trim() : '';\nconst replyText = candidate && !response.error ? candidate.slice(0, 5000) : fallback;\nconst waitingForHuman = replyText === fallback;\n\nreturn [{\n  json: {\n    ...routeData,\n    replyText,\n    waitingForHuman,\n    replyBody: {\n      replyToken: routeData.replyToken,\n      messages: [{ type: 'text', text: replyText }]\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000409",
+      "name": "統一回覆與紀錄",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const data = $input.first()?.json || {};\nconst fallback = '我請專人回覆您';\nconst replyText = String(data.replyText || fallback).slice(0, 5000);\nconst waitingForHuman = Boolean(data.waitingForHuman || replyText === fallback);\n\nreturn [{\n  json: {\n    ...data,\n    replyText,\n    waitingForHuman,\n    logTime: data.receivedAt || new Date().toISOString(),\n    replyBody: {\n      replyToken: data.replyToken,\n      messages: [{ type: 'text', text: replyText }]\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000410",
+      "name": "LINE 回覆 API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "continueOnFail": true,
+      "position": [
+        2160,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.replyBody }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "notes": "請選擇 HTTP Header Auth 憑證；範本只使用 reply endpoint。"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000411",
+      "name": "寫入對話紀錄",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2400,
+        0
+      ],
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "紀錄",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "時間": "={{ $('統一回覆與紀錄').first().json.logTime }}",
+            "使用者訊息": "={{ $('統一回覆與紀錄').first().json.userText }}",
+            "回覆": "={{ $('統一回覆與紀錄').first().json.replyText }}",
+            "是否待人工": "={{ $('統一回覆與紀錄').first().json.waitingForHuman ? '是' : '否' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "時間",
+              "displayName": "時間",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "使用者訊息",
+              "displayName": "使用者訊息",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "回覆",
+              "displayName": "回覆",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "是否待人工",
+              "displayName": "是否待人工",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleApi": {}
+      },
+      "notes": "請貼上試算表網址並選擇 Google 服務帳戶憑證；只在「紀錄」分頁記錄文字事件，不記姓名、電話、Email 等其他個資。"
+    }
+  ],
+  "connections": {
+    "LINE Webhook": {
+      "main": [
+        [
+          {
+            "node": "解析 LINE 事件",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析 LINE 事件": {
+      "main": [
+        [
+          {
+            "node": "只處理可回覆文字",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "只處理可回覆文字": {
+      "main": [
+        [
+          {
+            "node": "讀取 FAQ 試算表",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "讀取 FAQ 試算表": {
+      "main": [
+        [
+          {
+            "node": "準備知識與路由",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "準備知識與路由": {
+      "main": [
+        [
+          {
+            "node": "需要 AI 嗎",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "需要 AI 嗎": {
+      "main": [
+        [
+          {
+            "node": "呼叫 Zen AI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "統一回覆與紀錄",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "呼叫 Zen AI": {
+      "main": [
+        [
+          {
+            "node": "整理 AI 回覆",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "整理 AI 回覆": {
+      "main": [
+        [
+          {
+            "node": "統一回覆與紀錄",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "統一回覆與紀錄": {
+      "main": [
+        [
+          {
+            "node": "LINE 回覆 API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LINE 回覆 API": {
+      "main": [
+        [
+          {
+            "node": "寫入對話紀錄",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "10000000-0000-4000-8000-000000000412",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

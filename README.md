@@ -1,7 +1,7 @@
 # AntiGravity 學員技能精選包
 
 > 這是 Jacob 從內部工具庫挑出、最適合學員上手的技能精選。由 publish-student-pack.sh 自動同步，請勿手動編輯技能內容。
-> 最後發佈：2026-10-02
+> 最後發佈：2026-10-26
 
 ## 安裝
 ```bash
@@ -26,3 +26,4 @@ npx skills add jacob-cloud-n8n/antigravity-student-skills --skill <技能名> -g
 - `startup`
 - `shutdown`
 - `student-second-brain`
+- `line-assistant-setup`

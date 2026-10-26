@@ -1,0 +1,214 @@
+{
+  "name": "課程範本 3｜LINE 試算表 FAQ",
+  "nodes": [
+    {
+      "id": "10000000-0000-4000-8000-000000000201",
+      "name": "LINE Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "line-assistant-level-3",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "line-assistant",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "notes": "收到請求後立即回 200；後續節點在背景處理，避免 LINE 因等待而重送。"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000202",
+      "name": "解析 LINE 事件",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const input = $input.first()?.json || {};\nconst body = input.body && typeof input.body === 'object' ? input.body : input;\nconst events = Array.isArray(body.events) ? body.events : [];\n\nif (events.length === 0) {\n  return [{ json: { shouldReply: false, reason: 'empty-events' } }];\n}\n\nconst event = events[0] || {};\nconst isText = event.type === 'message' && event.message?.type === 'text';\nconst replyToken = typeof event.replyToken === 'string' ? event.replyToken : '';\n\nif (!isText || !replyToken) {\n  return [{ json: { shouldReply: false, reason: 'non-text-or-missing-reply-token' } }];\n}\n\nconst userText = String(event.message?.text || '').trim();\nconst sourceUserId = String(event.source?.userId || '');\n\nreturn [{\n  json: {\n    shouldReply: true,\n    replyToken,\n    userText,\n    userIdSuffix: sourceUserId ? sourceUserId.slice(-6) : '',\n    receivedAt: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000203",
+      "name": "只處理可回覆文字",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "condition-should-reply",
+              "leftValue": "={{ $json.shouldReply }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "notes": "空 events、貼圖等非文字事件會在這裡停止，不呼叫回覆 API。"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000204",
+      "name": "讀取 FAQ 試算表",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        720,
+        0
+      ],
+      "alwaysOutputData": true,
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "問答",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleApi": {}
+      },
+      "notes": "請貼上試算表網址並選擇 Google 服務帳戶憑證；「問答」分頁欄位必須是「關鍵字」與「回覆」。"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000205",
+      "name": "依試算表產生回覆",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const eventData = $('解析 LINE 事件').first().json;\nconst rows = $input.all()\n  .map((item) => ({\n    keyword: String(item.json?.['關鍵字'] || '').trim(),\n    reply: String(item.json?.['回覆'] || '').trim()\n  }))\n  .filter((row) => row.keyword && row.reply);\n\nconst normalizedText = String(eventData.userText || '').trim();\nconst normalRows = rows.filter((row) => !['預設', 'default'].includes(row.keyword.toLowerCase()));\nconst matched = normalRows.find((row) => normalizedText.includes(row.keyword));\nconst defaultRow = rows.find((row) => ['預設', 'default'].includes(row.keyword.toLowerCase()));\nconst replyText = matched?.reply || defaultRow?.reply || '我請專人回覆您';\n\nreturn [{\n  json: {\n    ...eventData,\n    replyText,\n    waitingForHuman: false,\n    replyBody: {\n      replyToken: eventData.replyToken,\n      messages: [{ type: 'text', text: replyText }]\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000206",
+      "name": "LINE 回覆 API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1200,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.replyBody }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "notes": "請選擇 HTTP Header Auth 憑證；範本只使用 reply endpoint。"
+    }
+  ],
+  "connections": {
+    "LINE Webhook": {
+      "main": [
+        [
+          {
+            "node": "解析 LINE 事件",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析 LINE 事件": {
+      "main": [
+        [
+          {
+            "node": "只處理可回覆文字",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "只處理可回覆文字": {
+      "main": [
+        [
+          {
+            "node": "讀取 FAQ 試算表",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "讀取 FAQ 試算表": {
+      "main": [
+        [
+          {
+            "node": "依試算表產生回覆",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "依試算表產生回覆": {
+      "main": [
+        [
+          {
+            "node": "LINE 回覆 API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "10000000-0000-4000-8000-000000000207",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -1,0 +1,175 @@
+{
+  "name": "課程範本 2｜LINE 關鍵字回覆",
+  "nodes": [
+    {
+      "id": "10000000-0000-4000-8000-000000000101",
+      "name": "LINE Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "line-assistant-level-2",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "line-assistant",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "notes": "收到請求後立即回 200；後續節點在背景處理，避免 LINE 因等待而重送。"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000102",
+      "name": "解析 LINE 事件",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const input = $input.first()?.json || {};\nconst body = input.body && typeof input.body === 'object' ? input.body : input;\nconst events = Array.isArray(body.events) ? body.events : [];\n\nif (events.length === 0) {\n  return [{ json: { shouldReply: false, reason: 'empty-events' } }];\n}\n\nconst event = events[0] || {};\nconst isText = event.type === 'message' && event.message?.type === 'text';\nconst replyToken = typeof event.replyToken === 'string' ? event.replyToken : '';\n\nif (!isText || !replyToken) {\n  return [{ json: { shouldReply: false, reason: 'non-text-or-missing-reply-token' } }];\n}\n\nconst userText = String(event.message?.text || '').trim();\nconst sourceUserId = String(event.source?.userId || '');\n\nreturn [{\n  json: {\n    shouldReply: true,\n    replyToken,\n    userText,\n    userIdSuffix: sourceUserId ? sourceUserId.slice(-6) : '',\n    receivedAt: new Date().toISOString()\n  }\n}];"
+      }
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000103",
+      "name": "只處理可回覆文字",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "condition-should-reply",
+              "leftValue": "={{ $json.shouldReply }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "notes": "空 events、貼圖等非文字事件會在這裡停止，不呼叫回覆 API。"
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000104",
+      "name": "關鍵字回覆",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const data = $input.first()?.json || {};\nconst text = String(data.userText || '').trim();\nconst answers = [\n  { keyword: '營業時間', reply: '我們的營業時間是週一至週五 09:00～18:00。' },\n  { keyword: '地址', reply: '我們的地址是：請在這裡填入您的營業地址。' },\n  { keyword: '預約', reply: '請留下想預約的日期與時段，我們會由專人確認。' }\n];\nconst matched = answers.find((row) => text.includes(row.keyword));\nconst replyText = matched?.reply || '這個問題我目前還沒有答案，請輸入「營業時間」、「地址」或「預約」。';\n\nreturn [{\n  json: {\n    ...data,\n    replyText,\n    waitingForHuman: false,\n    replyBody: {\n      replyToken: data.replyToken,\n      messages: [{ type: 'text', text: replyText }]\n    }\n  }\n}];"
+      }
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000105",
+      "name": "LINE 回覆 API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        960,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.replyBody }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "notes": "請選擇 HTTP Header Auth 憑證；範本只使用 reply endpoint。"
+    }
+  ],
+  "connections": {
+    "LINE Webhook": {
+      "main": [
+        [
+          {
+            "node": "解析 LINE 事件",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析 LINE 事件": {
+      "main": [
+        [
+          {
+            "node": "只處理可回覆文字",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "只處理可回覆文字": {
+      "main": [
+        [
+          {
+            "node": "關鍵字回覆",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "關鍵字回覆": {
+      "main": [
+        [
+          {
+            "node": "LINE 回覆 API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "10000000-0000-4000-8000-000000000106",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
+
