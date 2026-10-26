@@ -5,9 +5,10 @@
 > 授權與版本會變：**導入前當次重查**，不要信這份的日期之後的狀態。
 > 〔官〕＝官方文件／registry；〔推〕＝推論。
 
-## 導入狀態（2026-10-02）
+## 導入狀態（2026-10-02 首波 ／ 2026-10-18 第二波）
 
-GSAP、Tone.js、Kenney、Open Peeps 已導入並實測，用法與授權見 `SKILL.md`「工具與授權」與「技術規則」。
+- **2026-10-02**：GSAP、Tone.js、Kenney、Open Peeps 已導入並實測，用法與授權見 `SKILL.md`「工具與授權」與「技術規則」。
+- **2026-10-18**（參考 `mathruffian-dot/claude-motion-explainer`，MIT 授權）：移植中文教學動畫規則與五支腳本（`sheet.py` 360px 節拍九宮格、[`subset_fonts.py`](../scripts/subset_fonts.py) CJK 字型子集化、[`edge_tts_voice.py`](../scripts/edge_tts_voice.py)＋[`voice_meta.py`](../scripts/voice_meta.py) 免 Whisper 子句時間軸對齊、[`fix_voice.py`](../scripts/fix_voice.py) 破音整句等比換句），以及 [`kit.js`](../templates/kit.js) 的反緩動 `invEase2`/`invEase3` 與 `caption()` 逐句高亮字幕。**不裝 HyperFrames CLI，亦不納 Breeze TTS 2（限非商業／研究用途）。**
 
 ## 結論
 
@@ -63,7 +64,9 @@ GSAP、Tone.js、Kenney、Open Peeps 已導入並實測，用法與授權見 `SK
 | Revideo | GSAP 加料後仍缺「場景組合／預覽器」，而又不想上 React |
 | Three.js | 題材真的需要 3D（鏡頭穿梭、產品立體展示） |
 | unDraw／Pixabay | 需要現成場景插畫或整首配樂，且由人工挑選下載（unDraw 禁自動下載） |
-| ElevenLabs 等旁白 | 決定要加旁白時（本技能目前以字幕為主、不含旁白） |
+| `edge-tts`（＋`voice_meta.py`／`fix_voice.py`） | **2026-10-18 已納入選配**（`edge_tts_voice.py`）。套件為 GPL-3.0（透過 CLI 呼叫），語音由微軟線上服務合成，商用前請先確認目標平台與服務條款 |
+| Breeze TTS 2（MediaTek Research） | ⛔ **商用禁用**：模型與輸出受 BreezeBlue Research and Non-Commercial License 限制，僅限非商業研究用途。商業或對外行銷影片請勿使用 |
+| ElevenLabs／OpenAI TTS／Azure Speech 官方 API | 需要明確商用授權的付費旁白時，產出 `assets/voice/raw/NN.wav` 後直接接 `voice_meta.py` 對齊即可 |
 
 ## 來源
 

@@ -44,6 +44,10 @@ window.KIT = (() => {
   const ease = x => 1 - Math.pow(1 - clamp(x), 3);
   const easeIO = x => { x = clamp(x); return x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
   const easeBack = x => { x = clamp(x); const c = 1.7; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };  // 帶回彈的落地
+  // 計數器與長條圖同步：長條每格出現時間用計數器 ease 的反函數（不要用 stagger ease，方向會相反）
+  // GSAP 3 中 power2.out 為三次方 1-(1-t)^3，power3.out 為四次方 1-(1-t)^4
+  const invEase2 = y => 1 - Math.cbrt(1 - clamp(y));            // GSAP power2.out（及 KIT.ease）的反函數
+  const invEase3 = y => 1 - Math.pow(1 - clamp(y), 0.25);       // GSAP power3.out 的反函數
   const prog = (t, t0, d) => ease((t - t0) / d);
   const lerp = (a, b, p) => a + (b - a) * p;
   const win = (t, a, b, fi = 0.25, fo = 0.25) => Math.min(prog(t, a, fi), 1 - prog(t, b - fo, fo));     // 區段淡入淡出
@@ -63,6 +67,18 @@ window.KIT = (() => {
     ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.scale(s, s);
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 34); ctx.lineTo(9, 26); ctx.lineTo(15, 40); ctx.lineTo(21, 37); ctx.lineTo(15, 24); ctx.lineTo(27, 24); ctx.closePath();
     ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = C.bg; ctx.stroke(); ctx.restore();
+  }
+  // 旁白逐子句高亮字幕：clauses 為 voice_meta.py 輸出的 [{text, start, end}, ...]
+  // 正在唸的子句以強調色色塊反白（accent 底＋bg 字），已唸過的用 ink，未唸到的用 muted
+  function caption(ctx, t, clauses, {x = 540, y = 1220, px = 42, w = 700, fam = 'TC', gap = 18} = {}) {
+    if (!clauses || !clauses.length) return;
+    const active = clauses.find(c => t >= c.start && t <= c.end + 0.15) || clauses.filter(c => t >= c.start).slice(-1)[0];
+    if (!active) return;
+    ctx.save(); ctx.font = `${w} ${px}px ${fam}`; ctx.textBaseline = 'middle';
+    const padX = 14, padY = 10, bw = ctx.measureText(active.text).width + padX * 2, bh = px + padY * 2;
+    fillR(ctx, x - bw / 2, y - bh / 2, bw, bh, 10, C.acc, 1);
+    ctx.fillStyle = C.bg; ctx.textAlign = 'center'; ctx.fillText(active.text, x, y + 2);
+    ctx.restore();
   }
 
   // ---------- 手繪線條：每秒沸騰 8 次＋可畫到一半（p）----------
@@ -98,6 +114,6 @@ window.KIT = (() => {
   }
 
   return {setup, palette, PALETTES, get C() { return C; }, set C(v) { C = v; },
-          clamp, ease, easeIO, easeBack, prog, lerp, win, rise,
-          text, fillR, strokeR, line, cursor, sketch, circle, rect, peep};
+          clamp, ease, easeIO, easeBack, invEase2, invEase3, prog, lerp, win, rise,
+          text, fillR, strokeR, line, cursor, caption, sketch, circle, rect, peep};
 })();

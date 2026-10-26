@@ -58,5 +58,17 @@ missing = [n for n in need if not (ASSET / n).exists()]
 check(f"本機素材庫（{ASSET}）", not missing,
       f"python3 {Path(__file__).parent / 'fetch_assets.py'}（下載函式庫、字型、音效與角色，約 30 MB）" + (f"；缺：{missing}" if missing else ""))
 
+print("\n--- 選配工具（Contact Sheet 拼圖／中文字型瘦身／中文 TTS 旁白）---")
+for mod, label, fix in [
+    ("PIL", "Pillow（sheet.py 拼 360px 節拍檢查圖用）", "pip install pillow"),
+    ("fontTools", "fonttools（subset_fonts.py 中文字型瘦身用）", "pip install fonttools brotli"),
+    ("edge_tts", "edge-tts（edge_tts_voice.py 中文旁白合成用，選配）", "pip install edge-tts"),
+]:
+    try:
+        __import__(mod)
+        print(f"✅ {label}")
+    except ImportError:
+        print(f"⚪ {label}（未安裝，需要時執行：{fix}）")
+
 print("\n" + ("全部就緒，可以開始做動畫。" if ok_all else "照上面的修法處理完，再跑一次本檢查。"))
 sys.exit(0 if ok_all else 1)
