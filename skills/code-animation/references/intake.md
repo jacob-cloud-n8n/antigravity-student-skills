@@ -100,6 +100,7 @@
   "takeaway": "觀眾帶走什麼",
   "source": "原稿檔案路徑或貼上的全文",
   "must_include": ["一字不改的句子", "NT$999"],
+  "video_type": "promo",
   "platform": "FB 動態牆",
   "size": "1080x1350",
   "duration": 30,
@@ -114,4 +115,5 @@
   "defaults_used": ["duration", "palette"]
 }
 ```
+`video_type`：`promo`（產品／服務宣傳片）或 `explainer`（解說／教學片），必填；由第 1 題目的判斷，拿不準就問。
 `defaults_used`：哪些欄位是用預設值、不是使用者說的——交件時要列出來。

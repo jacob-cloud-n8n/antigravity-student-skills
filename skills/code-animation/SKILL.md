@@ -18,7 +18,8 @@ Windows 若沒有 `python3` 指令，改用 `python` 或 `py`。
 ## 工作流程（agent 照做）
 
 0. **引導問答**：照 `references/intake.md` 一題一題問（目的 → 內容 → 平台 → 片長 → 畫風 → 配色 → 音樂／旁白 → 交件）。畫風那題要給使用者看 `references/styles/` 的預覽圖。
-1. **製作單**：把答案寫成 `brief.json`，**念給使用者確認後才開工**。無頭派工時用預設值補齊，並記在 `defaults_used`。
+1. **製作單**：把答案寫成 `brief.json`，**念給使用者確認後才開工**。無頭派工時用預設值補齊，並記在 `defaults_used`。`video_type` 必填：`promo`（產品／服務宣傳片）或 `explainer`（解說／教學片）。
+   - **宣傳片在寫時間軸前必讀 `references/shotcraft-rules.md`**，先照四段能量配額排時長，再寫事件表；邊做邊填 `rules-check.json`（27 條逐條 `{"status":"pass|na","evidence":"哪一秒／哪個檔怎麼符合，或為何不適用"}`，放在 `rules` 鍵底下）。第 8 步沒有這份就不通過。
 2. **時間軸（配樂對拍 或 旁白驅動擇一）**：
    - **配樂對拍（預設）**：先寫事件表（哪一秒發生什麼），用 120 BPM 對拍（1 拍＝0.5 秒、1 小節＝2 秒），重要事件放在拍點上。
    - **中文旁白驅動（選配，原理解說／教學片適用）**：
@@ -40,6 +41,7 @@ Windows 若沒有 `python3` 指令，改用 `python` 或 `py`。
    ```
    Windows PowerShell 設環境變數：`$env:TONE_SCORE="score.js"`。不要聲音就兩個都不加。
 8. **機械驗收**：`python3 scripts/check.py 場景.html --brief brief.json --wav 場景-music.wav --timeline 場景-timeline.json --mp4 out.mp4`
+   - 宣傳片先跑完第 9 步，再加 `--rules rules-check.json --sheets sheets`。⑤ 的「申報」只證明每條被回答過，「量測」才是腳本量的（片尾靜止秒數、檢查表是否在成片之後產生）。
 9. **落定時刻 Contact Sheet 目視（`sheet.py`）**：
    ```bash
    python3 scripts/sheet.py --video out.mp4 --timeline 場景-timeline.json --out sheets
@@ -69,6 +71,7 @@ Windows 若沒有 `python3` 指令，改用 `python` 或 `py`。
 - ⛔ 畫面只能由 `render(t)` 決定：不得用 `setTimeout`、`requestAnimationFrame`、CSS transition——逐格會不可重現。
 - ⛔ GSAP 時間軸要**預跑一次**：`tl.progress(1, true).progress(0, true)`，被補間的屬性先用 `gsap.set` 寫明初始值；否則先跳到後面再倒回會畫錯。
 - ⛔ `window.render = t => { tl.seek(t); }` **一定要加大括號**；不加會把整個時間軸物件回傳給渲染器，卡死。
+- **網頁／介面高清運鏡**：要放大或 3D 傾斜含中文的畫面，用 `templates/kit-pagecam.js` 的 `KIT.pageCam(el, t, keyframes, opts)`（原生 CSS `zoom`，放大後字仍銳利），不要用 `transform: scale`（字會糊）。
 - **遮罩旋轉揭示**：外層 `overflow: hidden`，內層文字帶旋轉（如 `rotation: 3 → 0`）時，從 `yPercent: 100` 起跳會露出一角（中文字比英文字高更明顯），**起點必須設 `yPercent: 135`**。
 - **計數器與長條圖同步**：計數器用 GSAP `power2.out`（三次方 `1-(1-t)^3`）或 `power3.out`（四次方 `1-(1-t)^4`）時，長條格子的出現時間**不得用 stagger 的 ease**（stagger ease 管起跑時間分配，會變先慢後快、方向相反），必須用計數器 ease 的**反函數**算：呼叫 `KIT.invEase2(y)`（即 `1 - Math.cbrt(1 - y)`，對應 `power2.out`）或 `KIT.invEase3(y)`（`1 - Math.pow(1 - y, 0.25)`，對應 `power3.out`）。若有旁白，數字動畫要在唸到該子句後 **0.5 秒內**數完。
 - **SVG 描線動畫**：路徑做 dash 描線（從 0 開始畫）時，**`stroke-linecap` 一律用 `butt`**——用 `square` 在長度 0 時仍會畫出一個小方點。
@@ -97,6 +100,7 @@ Windows 若沒有 `python3` 指令，改用 `python` 或 `py`。
 - [ ] 第 0 格有字（封面）；換場沒有全黑格（用交叉淡化或物件延續）
 - [ ] 主角沒有穿過不該穿的東西（例如閘門落下前就越過閘門）
 - [ ] 音效事件點音量躍升 ≥1.5 倍；響度約 -16 LUFS（旁白片約 -14 LUFS）、峰值 ≤ -1 dBFS
+- [ ] 宣傳片：`check.py` ⑤ 通過，`rules-check.json` 隨片交件
 - [ ] 交件時明說沒驗到的：配樂／旁白口音與情緒聽感（agent 聽不到，由使用者耳朵決定）、手機實機觀看
 
 ## 工具與授權
@@ -110,6 +114,7 @@ Windows 若沒有 `python3` 指令，改用 `python` 或 `py`。
 | Open Peeps 角色 | CC0 | 角色插畫 |
 | 範例資料庫（475 支 Opus 5.5 影片提示詞） | MIT（`references/opus55-videos/LICENSE`） | 找參考作品 |
 | `sheet.py`／`subset_fonts.py`／`voice_meta.py`／`fix_voice.py`／`edge_tts_voice.py` 及動態設計品味規則 | 改編自 `mathruffian-dot/claude-motion-explainer`（MIT，commit `d868d7c1d71590b00174ebb76ef172b33aeddec2`）與 `whaleyxbt/claude-motion`（MIT）；完整授權全文與對照表見 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | 落定時刻 Contact Sheet、中文字型瘦身、免 Whisper 停頓對齊字幕、等比伸縮換句 |
+| `templates/kit-pagecam.js`、`references/shotcraft-rules.md` | 改寫自 `Vincentwei1021/video-shotcraft`（Apache-2.0），見 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 第 5 節；未搬它的素材 | 高清運鏡、宣傳片審美規則 |
 | `edge-tts`（選配旁白套件） | 套件 GPL-3.0；呼叫 Microsoft 線上語音服務（**商業發布前請自行確認微軟服務條款**） | 免 GPU 台灣口音中文旁白合成 |
 
 函式庫與素材都由 `fetch_assets.py` 從官方來源下載並驗證雜湊，不隨本技能散布。
@@ -120,6 +125,6 @@ Windows 若沒有 `python3` 指令，改用 `python` 或 `py`。
 ```
 THIRD_PARTY_NOTICES.md  第三方改編來源、Blob SHA 對照與完整 MIT 授權聲明
 scripts/    doctor.py 環境檢查｜fetch_assets.py 下載素材｜render.py 渲染｜tone_render.py 配樂｜check.py 驗收｜sheet.py 落定時刻 360px 檢查表｜subset_fonts.py 中文字型瘦身｜edge_tts_voice.py 中文 TTS 合成｜voice_meta.py 免 Whisper 子句停頓對齊｜fix_voice.py 唸錯字等比伸縮換句｜asset_server.py
-templates/  kit.js 共用工具（含 invEase2/3 反函數與 caption 字幕高亮）｜geo／motion／sketch／peeps.html 四種畫風範本｜score.js 配樂範本｜music.py 純 numpy 配樂（備用）
-references/ intake.md 引導問答｜styles/ 畫風預覽圖｜tools.md 工具評估｜assets.json 素材清單｜library-audit.md｜opus55-videos/ 範例資料庫
+templates/  kit.js 共用工具（含 invEase2/3 反函數與 caption 字幕高亮）｜kit-pagecam.js 高清 3D 運鏡｜geo／motion／sketch／peeps.html 四種畫風範本｜score.js 配樂範本｜music.py 純 numpy 配樂（備用）
+references/ intake.md 引導問答｜shotcraft-rules.md 宣傳片四段能量配額與 27 條審美規則｜styles/ 畫風預覽圖｜tools.md 工具評估｜assets.json 素材清單｜library-audit.md｜opus55-videos/ 範例資料庫
 ```
