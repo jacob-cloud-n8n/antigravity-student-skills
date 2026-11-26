@@ -165,8 +165,8 @@ done
 
 ```bash
 home=$(curl -s --max-time 10 -A "$UA" "https://$D/"); sleep 1
-js=$(printf '%s' "$home" | grep -oE "src=[\"'][^\"']+\.js[\"']" | sed -E "s/^src=[\"']//;s/[\"']$//" | grep -vE '^(https?:)?//' | head -3)
-printf '%s\n' "$js" | while read -r j; do   # 只取本站最多 3 支 JS，外部網域的跳過（逐行讀，zsh／bash 都適用）
+js=$(printf '%s' "$home" | grep -oE "(src|href)=[\"'][^\"']+\.m?js[\"']" | sed -E "s/^(src|href)=[\"']//;s/[\"']$//" | grep -vE '^(https?:)?//' | head -3)
+printf '%s\n' "$js" | while read -r j; do   # 只取本站最多 3 支 JS（含 <script src> 與 <link rel=modulepreload href>），外部網域的跳過；逐行讀，zsh／bash 都適用
   [ -z "$j" ] && continue
   p="/${j#/}"; p="${p#/./}"; [ "${p#/}" = "$p" ] && p="/$p"   # 補成「/路徑」
   curl -sI --max-time 10 -A "$UA" "https://$D$p.map" | grep -iE '^HTTP|content-type' | tr '\n' ' '
